@@ -44,13 +44,10 @@ CREATE TABLE tb_Produtos(
 	cdProduto INT PRIMARY KEY IDENTITY(1,1),
 	nmProduto VARCHAR(50) NOT NULL , --Obrigatório
 	vlProduto DECIMAL(6, 2) NOT NULL
-)
-;
-
--- Aula 5 - Criando Base de Dados (parte 2)
+);
 
 CREATE TABLE tb_Clientes(
-	cdCliente INT PRIMARY KEY IDENTITY(1,1)
+	cdCliente INT PRIMARY KEY IDENTITY(1,1),
 	nmCliente VARCHAR(50) NOT NULL,
 	dtNascimento DATE,
 	inSexo VARCHAR(1) NOT NULL,
@@ -61,14 +58,10 @@ CREATE TABLE tb_Clientes(
 	nmTelefone2 VARCHAR(15)
 )
 
--- Aula 6 - Criando Base de Dados (parte 3)
--- Aula 7
-
 CREATE TABLE tb_Vendas(
-	cdVenda INT PRIMARY KEY IDENTITY(1,1)
+	cdVenda INT PRIMARY KEY IDENTITY(1,1),
 	cdProduto INT NOT NULL,
-	vlProduto DECIMAL(6,2) NOT NULL,
-
+	vlProduto DECIMAL(6,2) NOT NULL
 );
 
 -- FOREIGN KEY
@@ -79,3 +72,25 @@ ADD CONSTRAINT FK_Produto_Vendas
 FOREIGN KEY (cdProduto)
 REFERENCES tb_Produtos(cdProduto)
 
+
+-- Inserções das tabelas
+--INSERT INTO [nome da tabela] ([colunas]) VALUES()
+
+INSERT INTO tb_Produtos VALUES ('Suco de Laranja', 4.5);
+-- Ordem errada
+--INSERT INTO tb_Produtos VALUES (1.5, 'Suco de Manga')
+-- Com os nomes das colunas
+INSERT INTO tb_Produtos (vlProduto, nmProduto) VALUES (1.5, 'Suco de Manga')
+
+-- Testando o CONSTRAINT
+
+INSERT INTO tb_Vendas VALUES (4, 3.2)
+
+
+-- Selecionando dados das tabelas
+-- SELECT [Colunas] FROM [tabela]
+
+SELECT cdProduto, nmProduto, vlProduto FROM tb_Produtos;
+SELECT nmProduto, vlProduto, cdProduto FROM tb_Produtos;
+SELECT cdProduto FROM tb_Produtos;
+SELECT * FROM tb_Vendas;
