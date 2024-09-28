@@ -243,3 +243,95 @@ WHERE V.cdCliente = @cdCliente
 
 -- sp_TotalVendasProdutosCliente 1
 */
+
+/*
+INSERT INTO tb_Clientes VALUES ('José Penha', '1977-05-07', 'M', 'Rua da Mecanica, 33', 'Campinas', 'São Paulo', '11 1233-4434', '11 99283-9099')
+INSERT INTO tb_Clientes VALUES ('Zequinha Muriçoca', '1988-05-07', 'M', 'Rua Jambira, 13', 'Campinas', 'São Paulo', '11 1584-2214', '')
+INSERT INTO tb_Clientes VALUES ('Mariazinha de Lá', '1981-05-07', 'F', 'Rua Jambira, 13', 'Campinas', 'São Paulo', '11 1584-2214', '')
+*/
+
+SELECT * FROM tb_Clientes
+SELECT * FROM tb_ClientesBackup
+/*
+SELECT *
+INTO tb_ClientesBackup
+FROM tb_Clientes
+*/
+
+CREATE TABLE tb_Enderecos (
+	cdEndereco INT NOT NULL PRIMARY KEY IDENTITY (1,1)
+	nmEndereco VARCHAR(50) NOT NULL,
+	nmCep VARCHAR (9)
+)
+
+CREATE TABLE tb_Cidades (
+	cdCidade INT NOT NULL PRIMARY KEY IDENTITY (1,1),
+	nmCidade VARCHAR(50) NOT NULL
+
+
+CREATE TABLE tb_Estados (
+	cdEstado INT NOT NULL PRIMARY KEY IDENTITY (1,1),
+	nmEstado VARCHAR(30) NOT NULL,
+	nmSigla VARCHAR(2) NOT NULL
+)
+
+
+ALTER TABLE tb_Enderecos
+ADD CONSTRAINT FK_Enderecos_Cidades
+FOREIGN KEY (cdCidade)
+REFERENCES tb_Cidades (cdCidade)
+
+ALTER TABLE tb_Cidades
+ADD CONSTRAINT FK_Cidades_Estados
+FOREIGN KEY (cdEstado)
+REFERENCES tb_Estados (cdEstado)
+
+
+/******** Script do comando SelectTopNRolls de SSMS *******/
+/*
+SELECT TOP 1000 [cdCliente]
+	,[nmCliente]
+	,[dtNascimento]
+	,[inSexo]
+	,[nmEndereco]
+	,[nmCidade]
+	,[nmEstado]
+	,[nmTelefone1]
+	,[nmTelefone2]
+FROM [dbLojaJailson].[dbo].[tb_ClientesBackup]
+*/
+
+
+-- Iniciar a transação
+-- BEGIN TRAN para fazer todas as alterações necessárias, confirmar se está OK e depois dar commit
+BEGIN TRAN
+
+CREATE TABLE #tmp_Estados (
+	cdEstado INT IDENTITY(1,1),
+	nmEstado VARCHAR(30),
+	nmSigla VARCHAR(2)
+)
+
+-- Insedir dados dos estados na tabela temporária
+INSERT INTO #tmp_Estados (nmEstado)
+SELECT DISTINCT nmEstado FROM tb_Clientes ORDER BY nmEstado;
+
+-- Update na Sigla
+UPDATE #tmp_Estados SET nmSigla = 'SP' WHERE nmEstado = 'São Paulo'
+
+SET IDENTITY_INSERT tb_Estados ON; --insere na coluna de identity
+
+-- Inserindo na tabela de Estado
+
+INSERT INTO tb_Estados (cdEstado, nmEstado, nmSigla)
+SELECT cdEstado, nmEstado, nmSigla FROM #tmp_Estados
+
+-- SELECT * FROM #tmp_Estados
+-- SELECT * FROM tb_Estados
+
+DROP TABLE #tmp_Estados
+
+SET IDENTITY_INSERT tb_Estados OFF;
+
+ROLLBACK TRAN
+-- COMMIT TRAN
