@@ -335,3 +335,98 @@ SET IDENTITY_INSERT tb_Estados OFF;
 
 ROLLBACK TRAN
 -- COMMIT TRAN
+
+------------------------------------------------------------------------
+
+-- Migrar cidades para a tabela tb_Cidades
+
+BEGIN TRAN; -- iniciar a transação
+
+CREATE TABLE #tmp_Cidades(
+	cdCidade INT IDENTITY (1,1),
+	nmCidade VARCHAR(50),
+	cdEstado INT
+);
+
+SET IDENTITY_INSERT #tmp_Cidades ON; --insere na coluna de identity
+
+
+-- Inserir os dados das cidades na tabela temporária
+
+INSERT INTO #tmp_Cidades (cdCidade)
+SELECT DISTINCT nmCidade FROM tb_Clientes
+ORDER BY nmCidade
+
+-- Tratamento de dados
+
+-- Update do código do estado
+
+--Maneira mais complexo (update com join):
+BEGIN TRAN;
+UPDATE TC
+SET TC.cdEstado = E.cdEstado
+FROM #tmp_Cidades AS TC
+INNER JOIN tb_Clientes AS T ON TC.nmCidade = T.nmCidade
+INNER JOIN tb_Estado AS E ON T.nmEstado = E.nmEstado
+
+SELECT * FROM tb_Estados AS E
+INNER JOIN tb_Clientes AS C ON E.nmEstado = C.nmEstado
+
+SELECT DISTINCT E.cdEstado, C.nmCidade FROM tb_Estados as E
+INNER JOIN tb_Clientes as C ON E.nmEstado = C.nmEstado
+
+
+SELECT * FROM #tmp_Cidades
+
+ROLLBACK TRAN;
+--COMMIT TRAN
+
+----------------------------------------------------
+
+-- Migrar cidades para a tabela tb_Cidades
+
+BEGIN TRAN; -- iniciar a transação
+
+CREATE TABLE #tmp_Cidades(
+	cdCidade INT IDENTITY (1,1),
+	nmCidade VARCHAR(50),
+	nmEstado VARCHAR(30),
+	cdEstado INT
+);
+
+--DROP TABLE #tmp_Cidades
+--SET IDENTITY_INSERT #tmp_Cidades ON; --insere na coluna de identity
+
+-- Inserir os dados das cidades na tabela temporária
+
+INSERT INTO #tmp_Cidades (nmCidade, nmEstado)
+SELECT DISTINCT nmCidade, nmEstado FROM tb_Clientes
+ORDER BY nmCidade
+
+-- Tratamento de dados
+
+-- Update do código do estado
+
+--Maneira mais simples:
+UPDATE TC SET
+TC.cdEstado = E.cdEstado
+FROM #tmp_Cidades as TC
+INNER JOIN tb_Estados AS E
+ON TC.nmEstado = E.nmEstado 
+
+
+SET IDENTITY_INSERT tb_Cidades ON;
+
+-- Inserir o nome na tabela de ciades
+INSERT INTO tb_Cidades (cdCidade, nmCidade, cdEstado)
+SELECT cdCidade, nmCidade, cdEstado FROM #tmp_Cidades
+
+-- SELECT * FROM tb_Cidades
+
+--SELECT * FROM #tmp_Cidades
+-- DROP TABLE #tmp_Cidades
+
+SET IDENTITY_INSERT tb_Cidades OFF;
+ROLLBACK TRAN;
+--COMMIT TRAN
+
