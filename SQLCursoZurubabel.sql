@@ -381,7 +381,7 @@ SELECT * FROM #tmp_Cidades
 ROLLBACK TRAN;
 --COMMIT TRAN
 
-----------------------------------------------------
+----------------------------------------------------------------
 
 -- Migrar cidades para a tabela tb_Cidades
 
@@ -429,4 +429,287 @@ SELECT cdCidade, nmCidade, cdEstado FROM #tmp_Cidades
 SET IDENTITY_INSERT tb_Cidades OFF;
 ROLLBACK TRAN;
 --COMMIT TRAN
+
+----------------------------------------------------------------
+
+SELECT * FROM tb_Clientes
+SELECT * FROM tb_Cidades
+SELECT * FROM tb_Enderecos (NOLOCK)
+
+BEGIN TRAN;
+
+INSERT INTO tb_Enderecos (nmEndereco, cdCidade)
+SELECT
+	C.nmEndereco,
+	CI.cdCidade
+FROM tb_Clientes as C (NOLOCK) INNER JOIN tb_Cidades as CI
+ON C.nmCidade = CI.nmCidade
+
+ROLLBACK TRAN;
+COMMIT TRAN;
+
+----------------------------------------------------------------
+
+USE dbLojaJailson;
+
+SELECT * FROM tb_Clientes
+
+BEGIN TRAN;
+
+ALTER TABLE tb_Clientes
+ADD cdEndereco INT NULL
+
+ALTER TABLE tb_Clientes
+ADD CONSTRAINT FK_ClientesEnderecos
+FOREIGN KEY (cdEndereco)
+REFERENCES tb_Enderecos(cdEndereco);
+
+ROLLBACK TRAN;
+-- COMMIT TRAN;
+
+----------------------------------------------------------------
+
+
+SELECT * FROM tb_Clientes
+SELECT * FROM tb_Enderecos
+
+BEGIN TRAN;
+
+UPDATE C SET 
+C.cdEndereco = E.cdEndereco
+FROM tb_Enderecos AS E
+INNER JOIN tb_Clientes AS C ON E.nmEndereco = C.nmEndereco
+
+ROLLBACK TRAN;
+--COMMIT TRAN;
+
+----------------------------------------------------------------
+
+
+BEGIN TRAN;
+
+ALTER TABLE tb_Clientes
+DROP COLUMN nmEndereco;
+ALTER TABLE tb_Clientes
+DROP COLUMN nmCidade;
+ALTER TABLE tb_Clientes
+DROP COLUMN nmEstado;
+
+ROLLBACK TRAN;
+--COMMIT TRAN;
+
+----------------------------------------------------------------
+
+/* CRIAR VIEW */
+
+CREATE VIEW vw_EnderecoCompletoClientes
+AS
+SELECT
+	CL.cdCliente,
+	CL.nmCliente,
+	CL.dtNascimento,
+	CL.inSexo,
+	EN.cdEndereco,
+	EN.nmEndereco,
+	EN.nmCep,
+	CI.cdCidade,
+	CI.nmCidade,
+	E.cdEstado,
+	E.nmEstado,
+	E.nmSigla
+
+FROM tb_Clientes AS CL INNER JOIN tb_Enderecos AS EN ON CL.cdEndereco = EN.cdEndereco
+INNER JOIN tb_Cidades AS CI ON EN.cdCidade = CI.cdCidade
+INNER JOIN tb_Estados AS E ON CI.cdEstado = E.cdEstado
+
+SELECT * FROM vw_EnderecoCompletoClientes
+----------------------------------------------------------------
+/*
+CREATE TABLE tb_Clientes_Hist(
+	cdClientes_Hist INT NOT NULL IDENTITY (1,1) PRIMARY KEY,
+	cdCliente INT NOT NULL,
+	nmCLiente VARCHAR(50),
+	dtNascimento DATE NULL,
+	inSexo VARCHAR(1) NULL,
+	nmTelefone VARCHAR(9)
+	)
+*/
+----------------------------------------------------------------
+
+CREATE TABLE tb_TelefoneCliente(
+	cdTelefone INT NOT NULL IDENTITY (1,1) PRIMARY KEY,
+	cdCliente INT NOT NULL,
+	nmTelefone VARCHAR(15) NOT NULL,
+	inAtivoSN VARCHAR(1) NOT NULL DEFAULT 'S'
+)
+ALTER TABLE tb_TelefoneCliente
+ADD CONSTRAINT FK_TelefoneCliente_Cliente
+FOREIGN KEY (cdCliente)
+REFERENCES tb_Clientes(cdCliente)
+--DROP TABLE tb_TelefoneCliente
+
+----------------------------------------------------------------
+
+BEGIN TRAN;
+INSERT INTO tb_TelefoneCliente (cdCliente, nmTelefone)
+SELECT cdCliente, nmTelefone FROM tb_Clientes;
+
+INSERT INTO tb_TelefoneCliente (cdCliente, nmTelefone)
+SELECT cdCliente, nmTelefone2 FROM tb_Clientes WHERE nmTelefone2 <> '';
+
+ROLLBACK TRAN;
+--COMMIT TRAN;
+
+BEGIN TRAN;
+ALTER TABLE tb_Clientes
+DROP COLUMN nmTelefone;
+ALTER TABLE tb_Clientes
+DROP COLUMN nmTelefone2;
+COMMIT TRAN;
+
+----------------------------------------------------------------
+
+CREATE TABLE tb_Clientes_Hist(
+	cdClientes_Hist INT NOT NULL IDENTITY (1,1) PRIMARY KEY,
+	cdCliente INT NOT NULL,
+	nmCLiente VARCHAR(50),
+	dtNascimento DATE NULL,
+	inSexo VARCHAR(1) NULL,
+	cdEndereco INT NULL,
+	dtInclusao DATETIME
+);
+
+CREATE TRIGGER tr_Backup_Clientes
+ON tb_Clientes
+FOR UPDATE
+AS
+	INSERT INTO tb_Clientes_Hist(cdCliente, nmCLiente, dtNascimento, inSexo, cdEndereco, dtInclusao)
+	SELECT cdCliente, nmCLiente, dtNascimento, inSexo, cdEndereco, GETDATE() FROM deleted;
+
+BEGIN TRAN;
+UPDATE tb_Clientes SET nmCliente = 'Jailson' WHERE cdCliente = 1;
+ROLLBACK TRAN;
+COMMIT TRAN;
+
+----------------------------------------------------------------
+
+--   INTERMEDIARIO
+
+----------------------------------------------------------------
+
+-- Funções de tempo
+
+-- Diferença entre DATE e DATETIME
+-- GETDATE()
+-- DATEDIFF()
+-- DATEADD()
+-- DATEPART()
+-- BETWEEN
+-- FORMAT
+
+-- Funções de tempo
+
+-- Diferença entre DATE e DATETIME
+-- GETDATE()
+SELECT GETDATE()
+SELECT CAST(GETDATE() AS DATE)
+
+-- DATEDIFF()
+SELECT DATEDIFF (DAY, '1984-03-04', GETDATE())
+SELECT DATEDIFF (MONTH, '1984-03-04', GETDATE())
+SELECT DATEDIFF (YEAR, '1984-03-04', GETDATE())
+
+-- DATEADD()
+SELECT GETDATE()
+SELECT DATEADD(day, -1, GETDATE())
+SELECT DATEADD(MONTH, -1, DATEADD(year, -1, GETDATE()))
+
+-- DATEPART()
+SELECT DATEPART(WEEKDAY, GETDATE())
+SELECT DATEPART(WEEKDAY, DATEADD(year, -1, GETDATE()))
+SELECT DATEPART(WEEKDAY, '1984-03-04')
+SELECT DATEPART(WEEK, '1984-03-04')
+
+-- BETWEEN
+SELECT * FROM tb_Vendas WHERE dtVendas BETWEEN DATEADD(year, -1, GETDATE()) AND GETDATE()
+
+-- FORMAT
+SELECT CAST(GETDATE() AS DATE)
+SELECT FORMAT(CAST(GETDATE() AS DATE), 'dd/MM/yyyy')
+
+SELECT * FROM tb_Vendas WHERE dtVendas >= FORMAT(GETDATE(), 'yyyy-MM-01')
+
+----------------------------------------------------------------
+
+-- Tabela temporária
+
+CREATE TABLE #tmp_dados(
+	nome VARCHAR(50) NULL,
+	idade INT
+);
+
+INSERT INTO #tmp_dados (nome, idade) VALUES ('Jailson', 25);
+
+SELECT * FROM #tmp_dados
+
+SELECT * INTO #tmp_cidades FROM tb_Cidades
+
+SELECT * FROM #tmp_cidades
+
+UPDATE #tmp_cidades SET nmCidade = nmCidade + ' - Brasil'
+
+DROP TABLE #tmp_cidades
+DROP TABLE #tmp_dados
+
+----------------------------------------------------------------
+
+use dbLojaJailson;
+  
+  INSERT INTO dbLojaJailson.dbo.tb_Estados (nmSigla, nmEstado ) VALUES
+  ('AC', 'Acre'),
+  ('AL', 'Alagoas'),
+  ('AP', 'Amapá'),
+  ('AM', 'Amazonas'),
+  ('BA', 'Bahia'),
+  ('CE', 'Ceará'),
+  ('DF', 'Distrito Federal'),
+  ('ES', 'Espírito Santo'),
+  ('GO', 'Goiás'),
+  ('MA', 'Maranhão'),
+  ('MT', 'Mato Grosso'),
+  ('MS', 'Mato Grosso do Sul'),
+  ('MG', 'Minas Gerais'),
+  ('PA', 'Pará'),
+  ('PE', 'Pernambuco'),
+  ('PI', 'Piauí'),
+  ('RJ', 'Rio de Janeiro'),
+  ('RN', 'Rio Grande do Norte'),
+  ('RS', 'Rio Grande do Sul'),
+  ('RO', 'Rondônia'),
+  ('RR', 'Roraima'),
+  ('SC', 'Santa Catarina'),
+  ('SP', 'São Paulo'),
+  ('SE', 'Sergipe'),
+  ('TO', 'Tocantins');
+
+
+  INSERT INTO tb_Produtos(nmProduto, vlProduto) VALUES 
+  ('Suco de Morango', 4.0), 
+  ('Suco de Macho', 5.0),
+  ('Suco de Tamarindo', 4.0),
+  ('Coxinha', 3.5),
+  ('X-Beico', 6.12),
+  ('X-Gordo Safado', 11.9),
+  ('Infartinho', 10),
+  ('Ai, que delícia!', 9.90),
+  ('X-Paulo Guina', 5.5),
+  ('Porção de Peça que Você Queria', 15.0),
+  ('Sorvete Sweet Dreams', 20.0),
+  ('Refrigerante Lata', 4.5),
+  ('Pãum de Batatah', 6.0),
+  ('Refrigerante 2L', 8.0),
+  ('Bala Juquinha', 0.5);
+
+
+  INSERT INTO tb_Vendas (cdCliente, dtVenda) VALUES (1, GETDATE());
 
