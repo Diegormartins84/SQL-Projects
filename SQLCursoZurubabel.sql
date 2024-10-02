@@ -713,3 +713,187 @@ use dbLojaJailson;
 
   INSERT INTO tb_Vendas (cdCliente, dtVenda) VALUES (1, GETDATE());
 
+--------------------------------------------------------------
+
+  SELECT * FROM tb_Estados
+SELECT * FROM tb_Produtos
+
+-- Salvar os duplicados
+
+SELECT nmProduto, vlProduto
+INTO #tmp_Backup
+FROM tb_Produtos
+WHERE nmProduto IN (
+SELECT
+	nmProduto
+FROM
+	tb_Produtos
+GROUP BY 
+	nmProduto
+HAVING
+	COUNT(*) >=2
+)
+
+-- Apagar os duplicados da base principal
+BEGIN TRAN;
+DELETE FROM tb_ProdutoVenda
+
+
+DELETE FROM tb_Produtos
+WHERE nmProduto IN(
+SELECT
+	nmProduto
+FROM
+	tb_Produtos
+GROUP BY 
+	nmProduto
+HAVING
+	COUNT(*) >=2
+)
+
+ROLLBACK TRAN;
+
+-- Voltar com os dados sem a duplicidade
+  
+SELECT * FROM #tmp_Backup
+
+DELETE FROM #tmp_Backup WHERE vlProduto = 25.00
+
+INSERT INTO tb_Produtos
+SELECT * FROM #tmp_Backup
+
+----------------------------------------------------------------
+
+
+SELECT AVG(vlProduto) FROM tb_Produtos
+
+SELECT STDEV(vlProduto) FROM tb_Produtos --Desvio padrão
+
+SELECT nmProduto, vlProduto, Calc.Media, Calc.DesvioPadrao, (vlProduto - Calc.Media) / Calc.DesvioPadrao AS Z_Score
+FROM tb_Produtos, (
+SELECT AVG(vlProduto) AS Media,
+STDEV(vlProduto) AS DesvioPadrao
+FROM tb_Produtos) AS Calc
+
+----------------------------------------------------------------
+
+SELECT
+	nmProduto, vlProduto,
+	AVG(vlProduto) OVER() AS Media,
+	STDEV(vlProduto) OVER() AS DesvioPadrao,
+	(vlProduto - AVG(vlProduto) OVER()) / STDEV(vlProduto) OVER() AS Z_Score
+FROM
+	tb_Produtos
+
+----------------------------------------------------------------
+
+SELECT nmProduto, vlProduto, Posicao
+FROM(
+	SELECT
+		nmProduto, vlProduto,
+		RANK() OVER(ORDER BY vlProduto DESC) AS Posicao
+	FROM
+		tb_Produtos
+	) AS Dados
+WHERE Posicao BETWEEN 5 AND 10
+
+----------------------------------------------------------------
+
+-- Variáveis
+DECLARE @maiorPreco DECIMAL (6,2);
+
+SELECT @maiorPreco;
+
+SET @maiorPreco = (SELECT MAX(vlProduto) FROM tb_Produtos);
+
+SELECT @maiorPreco;
+
+----------------------------------------------------------------
+
+SELECT
+	cdProduto,
+	nmProduto,
+	vlProduto,
+	CASE
+		WHEN vlProduto <= 6.0 THEN vlProduto * 1.2
+		WHEN vlProduto > 6.0 THEN vlProduto * 0.8 ELSE vlProduto
+	END AS vlProdutoComDesconto
+FROM
+	tb_Produtos
+
+----------------------------------------------------------------
+
+DECLARE @desconto SMALLINT;
+SET @desconto = 1; --1 = com desconto, 2 = sem desconto
+  
+IF @desconto = 1
+	BEGIN
+		SELECT TOP (1000) [cdProduto]
+			,[nmProduto]
+			,[vlProduto]
+			,CASE
+			WHEN vlProduto > 4 THEN vlProduto * 0.8 ELSE vlProduto
+			END AS vl_ProdutoDesconto
+		FROM [dbLojaJailson].[dbo].[tb_Produtos]
+	END
+ELSE
+	SELECT TOP (1000) [cdProduto]
+      ,[nmProduto]
+      ,[vlProduto]
+	FROM [dbLojaJailson].[dbo].[tb_Produtos]
+
+----------------------------------------------------------------
+
+/*
+Comparadores
+= igual
+<> diferente
+> maior
+>= maior ou igual
+< menor
+<= menor ou igual
+*/
+
+SELECT TOP (1000) [BusinessEntityID]
+      ,[NationalIDNumber]
+      ,[LoginID]
+      ,[OrganizationNode]
+      ,[OrganizationLevel]
+      ,[JobTitle]
+      ,[BirthDate]
+      ,[MaritalStatus]
+      ,[Gender]
+      ,[HireDate]
+      ,[SalariedFlag]
+      ,[VacationHours]
+      ,[SickLeaveHours]
+      ,[CurrentFlag]
+      ,[rowguid]
+      ,[ModifiedDate]
+  FROM [AdventureWorks2017].[HumanResources].[Employee]
+  WHERE SickLeaveHours > 20 AND SickLeaveHours < 40
+
+----------------------------------------------------------------
+
+SELECT TOP (1000) [BusinessEntityID]
+      ,[NationalIDNumber]
+      ,[LoginID]
+      ,[OrganizationNode]
+      ,[OrganizationLevel]
+      ,[JobTitle]
+      ,[BirthDate]
+      ,[MaritalStatus]
+      ,[Gender]
+      ,[HireDate]
+      ,[SalariedFlag]
+      ,[VacationHours]
+      ,[SickLeaveHours]
+      ,[CurrentFlag]
+      ,[rowguid]
+      ,[ModifiedDate]
+  FROM [AdventureWorks2017].[HumanResources].[Employee]
+  --WHERE JobTitle = 'Design Engineer'
+ -- WHERE JobTitle LIKE '%Engineer'
+  WHERE JobTitle LIKE '%Engineer%'
+
+----------------------------------------------------------------
