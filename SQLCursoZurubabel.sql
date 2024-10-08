@@ -1084,4 +1084,70 @@ DEALLOCATE cur_NomeCompleto
 
 ----------------------------------------------------------------
 
+-- Índices --
+
+----------------------------------------------------------------
+
+--Verificar tempo de execução:
+--SET STATISTICS TIME ON;
+
+----------------------------------------------------------------
+
+-- Forçar SQL a usar determinado índice
+
+SELECT
+      [PersonID]
+  FROM [AdventureWorks2017].[Person].[BusinessEntityContact] WITH (index(IX_BusinessEntityContact_PersonID))
+
+----------------------------------------------------------------
+
+-- Criando índices antes da tabela possuir dados
+
+/* CREATE TABLE tblTesteIndices(
+	col1 INT,
+	col2 INT
+)*/
+
+--Índice não clusterizado
+--CREATE NONCLUSTERED INDEX IDX_1 ON tblTesteIndices(col1)
+
+--Índice clusteriado
+--CREATE CLUSTERED INDEX IDX_2 ON tblTesteIndices(col2)
+
+-- Criando índices antes da tabela possuir dados
+
+/*CREATE TABLE tblTesteIndices(
+	col1 INT,
+	col2 INT
+)*/
+
+----------------------------------------------------------------
+
+--Índice não clusterizado
+--CREATE NONCLUSTERED INDEX IDX_1 ON tblTesteIndices(col1)
+
+--Índice clusteriado
+--CREATE CLUSTERED INDEX IDX_2 ON tblTesteIndices(col2)
+
+DECLARE @i INT
+SET @i = 0
+WHILE @i < 10000
+BEGIN
+	INSERT INTO tblTesteIndices (col1, col2) VALUES (ROUND(RAND() * 1000, 0), ROUND(RAND() * 1000, 0))
+	SET @i = @i + 1
+END
+
+SELECT * FROM tblTesteIndices
+--DELETE FROM tblTesteIndices
+
+-- Criando índices depois da tabela possuir dados
+
+-- Índice composto
+-- Essa diferença entre uma chave composta clusteriza e não clusterizada
+-- define a ordem dos valores das colunas, na outra define onde fica determinado dado para o SQL buscar mais rápido
+CREATE INDEX IDX_1 ON tblTesteIndices(col1) INCLUDE (col2)
+
+SELECT * FROM tblTesteIndices WHERE col2 = 50
+
+CREATE CLUSTERED INDEX INX_2 ON tblTesteIndices (col1 ASC, col2 ASC)
 
