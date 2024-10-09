@@ -1151,3 +1151,47 @@ SELECT * FROM tblTesteIndices WHERE col2 = 50
 
 CREATE CLUSTERED INDEX INX_2 ON tblTesteIndices (col1 ASC, col2 ASC)
 
+----------------------------------------------------------------
+
+-- Tabela variável
+
+DECLARE @tabela TABLE (
+	col1 INT INDEX IDX_1 CLUSTERED (col1 ASC, col2 ASC),
+	col2 INT INDEX IDX_2 NONCLUSTERED (col1, col2)
+)
+-- não funciona na tabela variável: CREATE INDEX IDX_1 ON @tabela (col1)
+
+-- Filegroups e Files no Management Studio
+
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+SET ANSI_PADDING ON
+GO
+
+CREATE TABLE [dbo].[DataRows](
+	[ID] [INT] NOT NULL,
+	[col1] [VARCHAR] (255) NULL,
+	[col2] [VARCHAR] (255) NULL,
+	[col3] [VARCHAR] (255) NULL
+) ON [PRIMARY]
+
+GO
+SET ANSI_PADDING OFF
+GO
+
+----------------------------------------------------------------
+-- SQL AVANÇADO --
+----------------------------------------------------------------
+/* Aula 1 - Armazenamento de base de dados
+
+	# O SQL pode armazenar, em teoria, 32,767 base de dados
+	# Cada base possui 1-n arquivos de log (.ldf) que armazena os dados para que possa ter uma
+	# Cada base possui 1 arquivo primário (.mdf) e 0-n arquivos segundários (.ndf)
+	# Todos os arquivos estão agrupados em filegroups (grupos de arquivos)
+		* Um filegroup é uma unidade lógica para organizar os arquivos físicos da base de dados
+
+*/
