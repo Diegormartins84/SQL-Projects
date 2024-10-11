@@ -1194,4 +1194,161 @@ GO
 	# Todos os arquivos estão agrupados em filegroups (grupos de arquivos)
 		* Um filegroup é uma unidade lógica para organizar os arquivos físicos da base de dados
 
+MDF: A extensão de arquivo MDF (master data file) indica o arquivo de dados primário do banco de dados. 
+NDF: A extensão de arquivo NDF (secondary data file) indica o arquivo de dados secundário do banco de dados. Este arquivo é opcional e pode ser definido pelo usuário para gerenciar o armazenamento de dados. 
+LDF: A extensão de arquivo LDF (log data file) indica o arquivo de log de transações do banco de dados. O arquivo de log contém informações usadas para recuperar o banco de dados. 
+
+*/
+
+/*
+	Aula 2 - Criando bases de dados (script)
+*/
+
+CREATE DATABASE SQLAvancado ON primary(
+	name = N'SQLAvancado', filename = N'E:\Pythonestudo\SQL_backup\SQLAvancado.mdf'
+), filegroup [PauloGuina] (
+	name = N'PauloGuina', filename = N'E:\Pythonestudo\SQL_backup\PauloGuina.ndf'
+), filegroup [Jailson] (
+	name = N'Jailson', filename = N'E:\Pythonestudo\SQL_backup\Jailson.ndf'
+), (
+	name = N'QueDelicia', filename = N'E:\Pythonestudo\SQL_backup\QueDeliciaCara.ndf'
+) log on (
+	name = N'Jaja_Log', filename = 'E:\Pythonestudo\Sql_backup\SQL_log.ldf'
+)
+
+/*
+	Aula 3 - Armazenamento de tabelas
+
+	# Ao criar tabelas, elas serão armazenadas em seus respectivos filegroups
+	# Se não for especificado o filegroup padrão, as tabelas serão criadas na PRIMARY
+
+	Filegroups da base SQLAvancado:
+		*[PauloGuina]
+		*[Jailson]
+*/
+
+
+CREATE TABLE dbo.tblPrimary ( --Tabela que irá para o filegroup padrão (neste caso, o primary)
+	coluna INT
+)
+CREATE TABLE dbo.tblPauloGuina (
+	coluna INT
+) ON [PauloGuina]
+CREATE TABLE dbo.tblJailson (
+	coluna INT
+) ON [Jailson]
+
+/*
+	Aula 4 - Alterando o filegroup padrão de uma base de dados
+
+	# Caso não seja alterado, as novas tabelas criadas irão para esse filegroup
+
+	Filegroups da base SQLAvancado:
+		*[PauloGuina]
+		*[Jailson]
+*/
+-- Ao criar a base de dados
+
+ALTER DATABASE SQLAvancado
+MODIFY FILEGROUP Jailson DEFAULT;
+
+-- No Wizard do SQL Server
+
+/*
+Aula 5 - Crescimento das tabelas (https://docs.microsoft.com/pt-br/sql/t-sql/statements/alter-database-transact-sql-file-and-filegroup-options)
+
+	# Quando criamos os arquivos do banco de dados, o SQL cria com alguns padrões de tamanho inicial e crescimento (5MB e 10%)
+	# Podemos configurar cada um de uma forma
+
+	# Atributos:
+		* SIZE = Tamanho inicial do arquivo
+		* MAXSIZE = Tamanho máximo
+		* FILEGROWTH = O quanto o arquivo cresce quando necessário
+*/
+
+-- Se existir a base, iremos removê-la
+
+IF EXISTS (SELECT * FROM sys.databases WHERE name = 'SQLAvancado') 
+	DROP DATABASE SQLAvancado;
+
+-- Recriando definindo o tamaho dos arquivos
+CREATE DATABASE SQLAvancado ON primary (
+	name = N'SQLAvancado', filename = N'c:\sql\SQLAvancado.mdf',
+	SIZE = 5MB, FILEGROWTH = 10MB
+), filegroup [PauloGuina] (
+	name = N'PauloGuina', filename = N'c:\sql\PauloGuina.ndf'
+), filegroup [Jailson] (
+	name = N'Jailson', filename = N'c:\sql\Jailson.ndf'
+), (
+	name = N'QueDelicia', filename = N'f:\sql\QueDeliciaCara.ndf'
+) log on (
+	name = N'Jaja_Log', filename = 'c:\sql\Jaja_Log.ldf'
+)
+
+/*
+	Aula 6 - Demonstrando o crescimento dos arquivos
+
+	# Aula para demonstrar o crescimento entre arquivos.
+	# Testaremos em duas tabelas: tblPauloguina (filegroup com 1 arquivo) e tblJailson (filegroup com 2 arquivos)s
+*/
+
+-- Tabela PauloGuina (Filegroup com 1 arquivo)
+DECLARE @i int
+
+set @i = 0
+
+while @i < 1000000
+begin
+
+	INSERT INTO dbo.tblPauloGuina VALUES (@i)
+	
+	set @i = @i + 1;
+
+end
+
+-- Tabela tblJailson (Filegroup com 2 arquivos)
+
+DECLARE @i int
+
+set @i = 0
+
+while @i < 1000000
+begin
+
+	INSERT INTO dbo.tblJailson VALUES (@i)
+	
+	set @i = @i + 1;
+
+end
+
+/*
+	Aula 7 - Tipos de Armazenamento
+
+	# De forma geral, existe três tipos de armazenamento e de índices: armazenamento em linha (rowstore), coluna (columnstore) e na memória (in-memory storage)
+		* Também existem índices columstore
+	# Rowstore - O "padrão" de armazenamento de tabelas relacionais
+	# Columstore - É usado para tabelas de Data Warehouses (Tabelas de fatos e tabelas de dimensões)
+		* https://logicalread.com/sql-server-columnstore-index-w02/#.WpxmHmrwbcc
+		* https://www.mssqltips.com/sqlservertip/5225/sql-server-clustered-columnstore-index-examples-for-etl/
+	# In-Memory OLTP 
+		* https://www.youtube.com/watch?v=l5l5eophmK4 - Vídeo sobre a tecnologia
+		* https://docs.microsoft.com/pt-br/sql/relational-databases/in-memory-oltp/in-memory-oltp-in-memory-optimization 
+
+	# http://www.sqlservercentral.com/articles/ColumnStore+Index/125264/ - 
+		Comparação entre as duas tecnologias (Índices de colunas x índices de linhas)
+	# http://15721.courses.cs.cmu.edu/spring2017/papers/09-olapindexes/p1177-larson.pdf - Sobre o columnstore
+
+*/
+
+/*
+	Aula 8 - Data Pages e Data Rows
+
+	# Os espaços do Banco de Dados são divididos em páginas de 8kb cada;
+	# As páginas são numeradas ordendamente começando pelo 0 (entra página = +1; sai página -1)
+	# A página é composta por algumas partes: Page Header (96 bytes), data rows (onde os dados são armazenados),
+	um espaço em branco e o	Slot Array;
+
+	# O Header identifica os metadados da página (qual objeto pertence, quantidade de linhas, etcs);
+	# Em seguida tem o espaço onde os dados das linhas são armazenados;
+	# O Slot Array indica a ordem lógica dos dados na página
 */
