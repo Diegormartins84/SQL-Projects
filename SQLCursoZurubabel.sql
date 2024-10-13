@@ -1352,3 +1352,618 @@ end
 	# Em seguida tem o espaço onde os dados das linhas são armazenados;
 	# O Slot Array indica a ordem lógica dos dados na página
 */
+
+/*
+	Aula 9 - Tipos de dados do SQL Server e seu armazenamento
+
+	# Os dados do SQL podem ser divididos em dois: Dados de tamanho fixo e de tamanho variável
+	# Os de tamanho fixo ocupam um espaço fixo, independente se têm dados ou não;
+	# Os de tamanho variável ocupam o espaço necessário, mais dois bytes;
+
+	Entre os tipos estão:
+		# Tamanho fixo: INT, DATETIME, CHAR...
+		# Tamanho variável: VARCHAR, VARBINARY...
+
+	* https://docs.microsoft.com/pt-br/sql/t-sql/data-types/data-types-transact-sql - Sobre tipos de dados
+*/
+
+/*
+	Aula 10 - Armazenamento de dados na tabela (https://blogs.msdn.microsoft.com/fcatae/2016/04/26/dbcc-ind/)
+	https://raresql.com/2013/01/24/sql-server-2012-sys-dm_db_database_page_allocations-dynamic-management-function/
+
+
+	Funções de verificação
+		sys.dm_db_database_page_allocations
+		dbcc ind
+
+	# Os dados são armazenados em páginas
+	# Cada página possui N linhas de dados
+	# Os campos são:
+	•	PageFID – O id do arquivo da página;
+	•	PagePID – o número da página no arquivo;
+	•	IAMFID – O id do arquivo IAM (Index Allocation Map) que mapeia esta página (se o arquivo foi um IAM, o resultado será nulo, assim como o IAMFID da primeira linha da m (https://technet.microsoft.com/pt-br/library/ms187501(v=sql.105).aspx)
+	•	IAMPID – o número da página que o arquivo IAM mapeia esta página;
+	•	ObjectId – O ID que o índice desta página faz parte;
+	•	PartitionNumber – O número da partição que esta página está;
+	•	PartitionID – O ID interno da página ao qual o datarow está alocado;
+	•	Iam_chain_type – o tipo da unidade de alocação (IN_ROW_DATA (para tabelas HEAP), LOB_DATA (Large Object) e ROW_OVERFLOW_DATA);
+	•	PageType – Representa o tipo da página. As mais comuns são:
+		o	1  - página de dados;
+		o	2 – página de índice;
+		o	3 e 4 – páginas de texto;
+		o	8 – páginas GAM;
+		o	9 – páginas SGAM;
+		o	10 – página IAM;
+		o	11 – página PFS;
+	•	IndexLevel – Em qual nível a página está do índice (isso se estiver em algum índice). O número vai desde o 0 (página folha – mais na borda da árvore) até a página N, que é a raiz;
+	•	NextPagaFID e NextPagePID – Próximas páginas;
+	•	PrevPageFID e PrevPagePID – Páginas anteriores de acordo com o índice;
+*/
+
+create table tblJailson (
+	col1 int NULL,
+	col2 int
+) on [Jailson]
+
+insert into tblJailson values (1,2)
+
+
+dbcc ind (
+	'SQLAvancado', --banco de dados
+	'dbo.tblJailson', --tabela
+	-1 --tipo de exibição
+)
+
+--Para verificar como está armazenado na tabela:
+dbcc traceon(3604)
+dbcc page (
+	'SQLAvancado',
+	4, --File ID
+	16, -- Page ID
+	3 -- Tipo de display
+)
+
+select * from sys.dm_db_database_page_allocations(DB_ID(), OBJECT_ID('tblJailson'), null, null, 'DETAILED')
+
+/*
+	Aula 11 - Estrutura de um Data Row (http://aboutsqlserver.com/2013/10/15/sql-server-storage-engine-data-pages-and-data-rows/)	
+
+	O DataRow é composto por algumas partes:
+		* TagA e TagB (1 Byte cada) - Contém informações sobre o tipo de linha, se a linha foi apagada, se a linha tem valores NULL...
+		* FSize (2 bytes) - Informa o tamanho dos dados de tamanho fixo
+		* Fdata (N bytes) - Os dados da coluna de tamanho fixo
+		* Ncol (2 bytes) - Informa a quantidade de colunas na linha
+		* NullBits (N° colunas / 8 bytes) - Informa a quantidade de valores nulos
+		-- Parte variável
+		* VarCont (2 bytes) - Quantidade de colunas com dados de tamanho variável
+		* VarOffset (2 * Varcount) bytes - Armazena 2 bytes x quantidade de colunas com valores variáveis, mesmo que a coluna tenha
+		valores nulos
+		* VarData (N bytes) - Os dados de valores variáveis
+		* Tag de Versionamento (14 bytes) - Tag de versionamento para algumas operações	
+*/
+
+
+dbcc traceon(3604)
+dbcc page (
+	'SQLAvancado',
+	4, --File ID
+	16, -- Page ID
+	3 -- Tipo de display
+)
+
+insert into tblJailson values (null, 1)
+
+dbcc ind (
+	'SQLAvancado',
+	'dbo.tblJailson',
+	-1
+)
+
+/*
+	Insert 1
+
+	select * from tblJailson
+	* TagA  10
+	* TagB  00
+	* FSize 0c00
+	* Fdata 
+		- Col1 01000000
+		- Col2 02000000
+	* Ncol 020000
+	* NullBits 00
+
+*/
+/*
+	Aula 12 - Limites de espaço em uma página
+
+	# Cada página só pode guardar até 8.060 bytes de dados de tamanho fixo
+	# Demonstração das tabelas
+*/
+
+-- Tabela boa
+
+use SQLAvancado
+
+CREATE TABLE tbl_TabelaBoa(
+	col1 CHAR(2000),
+	col2 CHAR(2000)
+)
+
+dbcc ind(
+	'SQLAvancado',
+	'dbo.tbl_TabelaBoa', -- Nome da tabela
+	1
+)
+
+insert into tbl_TabelaBoa values ('Churros', 'Pimenta')
+
+dbcc traceon(3604);
+dbcc page (
+	'SQLAvancado', -- Base de dados
+	1, -- FID
+	121, -- PID
+	3
+)
+
+
+-- Tabela Ruim
+-- Falha na criação ou alteração da tabela 'tbl_TabelaRuim' porque o tamanho mínimo da linha seria 8067, incluindo 7 bytes de sobrecarga interna. Isso excede o tamanho máximo permitido de linha de tabela, que é 8060 bytes.
+
+CREATE TABLE tbl_TabelaRuim (
+	col1 CHAR(4000),
+	col2 CHAR(4060)
+)
+
+CREATE TABLE tbl_TabelaRuim2 (
+	col1 CHAR(2000),
+	col2 CHAR(6060),
+	col3 CHAR(30)
+)
+/*
+	Aula 13 - Armazenamento Row Overflow
+
+	# Existem dois tipos de armazenamento de dados:
+		* Row Overflow Storage - Quando a página não excede 8.000 bytes
+		* LOB Storage - Quando o objeto é grande (> 8kb)
+
+	# Quanto maior a quandidade de colunas e dados, maior é a quantidade de páginas de Row Overflow
+
+*/
+
+create table tbl_RowOverflow (
+	id int,
+	col1 varchar(8000),
+	col2 varchar(8000)
+	--, col3 varchar(8000)
+)
+
+select * from tbl_RowOverflow
+
+--insert into tbl_RowOverflow values (1, replicate('x', 800), replicate('y', 800)) --, replicate('z', 8000))
+
+--insert into tbl_RowOverflow values (1, replicate('x', 8000), replicate('y', 8000)), replicate('z', 8000))
+
+dbcc ind (
+	'SQLAvancado',
+	'dbo.tbl_RowOverflow',
+	1
+)
+
+dbcc traceon(3604)
+dbcc page (
+	'SQLAvancado',
+	1,
+	142,
+	3
+)
+/*
+	Aula 14 - Armazenamento LOB
+
+	# Demonstração do LOB
+
+	# Igual ao Row-Overflow, é uma página com ponteiro para outras folhas.
+
+	# Caso a página não tenha espaço para o dado, será criada uma página nova
+*/
+
+CREATE TABLE tbl_TabelaLOB (
+	id INT,
+	texto VARCHAR(MAX)
+)
+
+INSERT INTO tbl_TabelaLOB VALUES (1, REPLICATE(CONVERT(VARCHAR(MAX), 'A'), 16000))
+
+
+dbcc ind (
+	'SQLAvancado',
+	'dbo.tbl_TabelaLOB',
+	1
+)
+
+dbcc traceon(3604)
+dbcc page (
+	'SQLAvancado',
+	1,
+	156,
+	3
+)
+/*
+	Aula 15 - O problema do Select *
+
+	# Graças a natureza do Select *, pode ser que ele selecione dados com várias páginas
+*/
+-- Korotkevitch, Dmitri. Pro SQL Server Internals (Locais do Kindle 1273-1279). Apress. Edição do Kindle. 
+
+SET STATISTICS TIME ON
+
+CREATE TABLE Employees
+(
+	EmployeeId int not null,
+	Name varchar( 128) not null,
+	Picture varbinary( max) null 
+); 
+
+;with N1( C) as 
+(select 0 union all select 0) -- 2 rows 
+,N2( C) as (select 0 from N1 as T1 cross join N1 as T2) -- 4 rows 
+,N3( C) as (select 0 from N2 as T1 cross join N2 as T2) -- 16 rows 
+,N4( C) as (select 0 from N3 as T1 cross join N3 as T2) -- 256 rows 
+,N5( C) as (select 0 from N4 as T1 cross join N2 as T2) -- 1,024 rows 
+,IDs( ID) as (select row_number() over (order by (select null)) from N5) 
+
+insert into dbo.Employees( EmployeeId, Name, Picture)
+select
+	ID, 'Employee ' + convert( varchar( 5), ID),
+	convert( varbinary( max), replicate( convert( varchar( max),' a'), 120000))         
+from 
+	Ids;
+
+
+select EmployeeID, Name from dbo.Employees
+
+SELECT * FROM Employees
+
+/*
+	Aula 16 - Extensões e Páginas de Alocação (https://technet.microsoft.com/en-us/library/ms190969(v=sql.105).aspx)
+
+	# O SQL armazena em unidades de 8 páginas, totalizando 64kb chamadas extensões (extents)
+	# As páginas podem estar de extensões mistas (mixed extends) ou de tipos iguais (uniform extends)
+	# Por padrão a primeira extensão é mista. Depois ela é uniforme
+	# As páginas são monitoradas através de mapas de alocação
+	# O SQL possui arquivos de monitoramento chamados Mapas de Alocação (Allocation Maps)
+		* IAM (Index Allocation Map) - Cuida das páginas de índices e de dados
+		* GAM (Global Allocation Map) - Verifica se a páginas está alocada em qualquer objeto
+		* SGAM (Shared Global Allocation Map) - Verifica se a página está alocada em uma extensão mista
+			- GAM e SGAM podem cuidar de até 64.000 extensões (4GB)
+*/
+
+create table tbl_Teste(
+	col1 char(5000)
+)
+
+INSERT INTO tbl_Teste values (replicate('x', 5000))
+
+dbcc ind (
+	'SQLAvancado',
+	'dbo.tbl_Teste',
+	1
+)
+
+dbcc traceon(3604)
+dbcc page (
+	'SQLAvancado',
+	1,
+	32039,
+	3
+)
+
+-- https://raresql.com/2013/01/24/sql-server-2012-sys-dm_db_database_page_allocations-dynamic-management-function/
+select * from sys.dm_db_database_page_allocations(DB_ID(), OBJECT_ID('tbl_Teste'), NULL, NULL, 'DETAILED')
+
+/*
+	Aula 17 - Monitoramento de tamanho de páginas - PFS
+
+	# O SQL monitora o tamanho de cada página através do Page Free Space
+	# O monitoramento é feito por classes:
+		* Vazio
+		* 1-50%
+		* 51-80%
+		* 81-95%
+		* 96-100%
+	# Caso o SQL verifique que o tamanho dos dados extrapolará os 8k, será criada uma nova página
+	# Cuidado ao criar tabelas com dados de tamanho fixo, pois pode acarretar em espaços sem uso
+
+	- m_slotCnt = Quantidade de registros na página
+	- m_freeCnt = Quantidade de bytes livres
+
+	* Lembremos que existem outros dados além das informações das colunas
+*/
+-- DROP TABLE tbl_PFS
+
+USE SQLAvancado
+
+CREATE TABLE tbl_PFS (
+	coluna INT -- INT = 4 bytes
+)
+
+-- 8.083
+INSERT INTO tbl_PFS VALUES (1)
+
+dbcc ind (
+	'SQLAvancado',
+	'dbo.tbl_PFS',
+	1
+)
+
+dbcc traceon(3604)
+dbcc page (
+	'SQLAvancado',
+	1,
+	32029,
+	3
+)
+
+DECLARE @i int;
+SET @i = 0
+while @i < 500
+begin	
+	INSERT INTO tbl_PFS values (1);
+	SET @i = @i + 1;
+end
+
+-- Tamanho variável
+
+-- DROP TABLE tbl_PFS_Var 
+
+create table tbl_PFS_Var (
+	letra VARCHAR(4000)
+)
+
+INSERT INTO tbl_PFS_Var VALUES (replicate('x', 20))
+
+dbcc ind (
+	'SQLAvancado',
+	'dbo.tbl_PFS_Var',
+	1
+)
+
+dbcc traceon(3604)
+dbcc page (
+	'SQLAvancado',
+	1,
+	32040,
+	3
+)
+
+-- Tabela desperdício
+-- DROP TABLE tbl_PFS_PerdeEspacoPraCaceteQueVoceVaiTerIdeiaAgora
+
+CREATE TABLE tbl_PFS_PerdeEspacoPraCaceteQueVoceVaiTerIdeiaAgora (
+	desperdicandoPraCacete CHAR(3500)
+)
+
+INSERT INTO tbl_PFS_PerdeEspacoPraCaceteQueVoceVaiTerIdeiaAgora VALUES ('A'), ('B'), ('C')
+
+dbcc ind (
+	'SQLAvancado',
+	'dbo.tbl_PFS_PerdeEspacoPraCaceteQueVoceVaiTerIdeiaAgora',
+	1
+)
+
+dbcc traceon(3604)
+dbcc page (
+	'SQLAvancado',
+	1,
+	32029,
+	3
+)
+
+-- Sigla CHAR(2)
+
+/*
+	Aula 18 - Alteração de data
+
+	# Quando há uma alteração, o SQL realiza o seguinte processo
+		* Lê a página a ser modificada e a coloca na memória (buffer pool)
+		* Cria um log transação síncrono e depois atualiza a página no buffer
+		* O banco de dados atualiza a página no disco assincronamente
+
+	# Este processo é similar para as outras operações de manipulação de data (DML - INSERT, UPDATE, DELETE, SELECT e MERGE)
+
+*/
+
+/*
+	Aula 19 - Sobre o tamanho dos dados e suas leituras (https://technet.microsoft.com/en-us/library/ms172424(v=sql.110).aspx)
+
+	# O SQL é um aplicativo com muito uso de entrada e saída de disco (I/O)
+	# Quanto maior a quantidade de páginas aos quais o dado está, mais I/O será demandada
+	# Temos que verificar qual é o tamanho dos dados na hora de criarmos as tabelas
+	# Dependendo do tipo de dado usado, pode haver uma grande economia de disco a longo prazo.
+
+*/
+USE SQLAvancado
+
+CREATE TABLE tbl_Colunao (
+	id int,
+	colunao char(2000)
+);
+
+create table tbl_Coluninha (
+	id int,
+	coluninha varchar(2000)
+)
+-- Korotkevitch, Dmitri. Pro SQL Server Internals (Locais do Kindle 1408). Apress. Edição do Kindle. 
+;with N1(C) as (select 0 union all select 0),
+N2(C) as (Select 0 from N1 CROSS JOIN N1 as T2),
+N3(C) as (Select 0 from N2 as T1 CROSS JOIN N2 as T2),
+N4(C) as (Select 0 from N3 as T1 CROSS JOIN N3 as T2),
+N5(C) as (Select 0 from N4 AS T1 CROSS JOIN N4 as T2),
+IDs(ID) as (select row_number() over (order by (select null)) from N5)
+
+INSERT INTO tbl_Colunao
+SELECT ID, 'D' from IDs;
+
+
+;with N1(C) as (select 0 union all select 0),
+N2(C) as (Select 0 from N1 CROSS JOIN N1 as T2),
+N3(C) as (Select 0 from N2 as T1 CROSS JOIN N2 as T2),
+N4(C) as (Select 0 from N3 as T1 CROSS JOIN N3 as T2),
+N5(C) as (Select 0 from N4 AS T1 CROSS JOIN N4 as T2),
+IDs(ID) as (select row_number() over (order by (select null)) from N5)
+
+INSERT INTO tbl_Coluninha
+SELECT ID, 'D' from IDs;
+
+dbcc ind (
+	'SQLAvancado',
+	'dbo.tbl_Coluninha',
+	-1
+)
+
+dbcc traceon(3604)
+dbcc page (
+	'SQLAvancado',
+	1,
+	32029,
+	3
+)
+
+/*
+
+SET STATISTICS TIME ON
+
+SELECT * FROM tbl_Coluninha
+SELECT * FROM tbl_Colunao
+
+DROP TABLE tbl_Coluninha
+DROP TABLE tbl_Colunao
+
+*/
+
+/*
+	Aula 20 - Alteração de tabelas
+
+	# Ao alterar uma tabela (ALTER TABLE), o SQL pode proceder de três maneiras:
+		* Só altera a metadata (drop de coluna ou alterar uma colona NOT NULL para NULL, por exemplo)
+		* Altera a metadata, mas precisa de um table scan (de NULL para NOT NULL)
+		* Altera o tipo da coluna e tem que haver a verificação de todas as linhas (de char para int)
+*/
+
+USE SQLAvancado
+
+-- Criação da tabela de exemplo
+CREATE TABLE tbl_ExemploAlteracao (
+	InteiroNaoNull INT NOT NULL,
+	InteiroNull INT NULL,
+	BigInteiro BIGINT,
+	Caractere CHAR(10),
+	InteiroPequeno TINYINT
+)
+
+-- Primeiro caso
+INSERT INTO tbl_ExemploAlteracao VALUES (1, 1, 50, 'Churros', 1)
+
+ALTER TABLE tbl_ExemploAlteracao 
+ALTER COLUMN InteiroNaoNull INT NULL
+
+-- Segundo caso
+DELETE FROM tbl_ExemploAlteracao;
+
+INSERT INTO tbl_ExemploAlteracao VALUES (1, NULL, 50, 'Churros', 1)
+
+ALTER TABLE tbl_ExemploAlteracao 
+ALTER COLUMN InteiroNull INT NOT NULL
+
+UPDATE tbl_ExemploAlteracao SET InteiroNull = 0 WHERE InteiroNull is NULL
+
+-- Terceiro caso
+DELETE FROM tbl_ExemploAlteracao;
+
+INSERT INTO tbl_ExemploAlteracao VALUES (1, 1, 50, '1', 1)
+INSERT INTO tbl_ExemploAlteracao VALUES (1, 1, 50, 'Jhonsons', 1)
+
+ALTER TABLE tbl_ExemploAlteracao 
+ALTER COLUMN Caractere INT 
+
+INSERT INTO tbl_ExemploAlteracao VALUES (1, 1, 9223372036854775000, '1', 1)
+
+ALTER TABLE tbl_ExemploAlteracao 
+ALTER COLUMN BigInteiro INT 
+
+
+dbcc ind (
+	'SQLAvancado',
+	'dbo.tbl_ExemploAlteracao',
+	1
+)
+
+dbcc traceon(3604)
+dbcc page (
+	'SQLAvancado',
+	1,
+	32019,
+	3
+)
+
+/*
+	Aula 21 - Resquícios das alterações de tabelas
+
+	# Quando você diminui o tamanho ou dropa uma coluna, o SQL não retorna o tamanho "excedente"
+	# Se você alterar o tamanho de uma coluna para outra maior (int para bigint), o SQL cria uma coluna
+	com o espaço maior e copia os dados da coluna menor para a maior, ainda ocupando o espaço da coluna menor
+	# ALTER REBUILD ajuda a resgatar o espaço perdido
+*/
+
+USE SQLAvancado
+
+-- Criação da tabela de exemplo
+-- DROP TABLE tbl_DadosPerdidos
+
+CREATE TABLE tbl_DadosPerdidos (
+	inteiro INT,
+	tamanhoFixo CHAR(10),
+	colunaGrande CHAR(500),
+	numerinho TINYINT
+)
+
+-- Verificano o tamanho
+-- Script do livro Korotkevitch, Dmitri. Pro SQL Server Internals (Locais do Kindle 1477-1481). Apress. Edição do Kindle. 
+select
+	c.column_id, 
+	c.Name, 
+	ipc.leaf_offset as [Offset in Row], 
+	ipc.max_inrow_length as [Max Length], 
+	ipc.system_type_id as [Column Type] 
+from
+	sys.system_internals_partition_columns ipc join sys.partitions p on ipc.partition_id = p.partition_id         
+	join sys.columns c on c.column_id = ipc.partition_column_id and c.object_id = p.object_id 
+where 
+	p.object_id = object_id( N'dbo.tbl_DadosPerdidos') order by c.column_id;
+
+-- Aumento de tamanho
+ALTER TABLE tbl_DadosPerdidos
+ALTER COLUMN numerinho BIGINT
+
+-- 7.564
+INSERT INTO tbl_DadosPerdidos VALUES (1, 2, 4)
+
+-- Drop de coluna
+ALTER TABLE tbl_DadosPerdidos
+DROP COLUMN colunaGrande
+
+dbcc ind (
+	'SQLAvancado',
+	'dbo.tbl_DadosPerdidos',
+	1
+)
+
+dbcc traceon(3604)
+dbcc page (
+	'SQLAvancado',
+	1,
+	32008,
+	3
+)
+
+-- O Rebuild irá criar uma nova página com outra numeração
+ALTER TABLE tbl_DadosPerdidos REBUILD
